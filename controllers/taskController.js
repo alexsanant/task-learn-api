@@ -1,8 +1,15 @@
 //cargar el model de tasks
 const Task = require('../models/taskModel');
+
+//cargar middleware authMiddleware
+const authMiddleware = require('../middlewares/authMiddleware');
+
 ////////////////////////////////////////////////////////////////
 //nueva función asíncrona para crear tareas
 async function postTask (request, response) {
+    //recuperar usuario actual a través del token
+    const user = await authMiddleware.getUser(request, response);
+
     //se crea un objeto del modelo
     const task = new Task();
 
@@ -12,6 +19,9 @@ async function postTask (request, response) {
     //recuperar los datos del body y añadirlos al modelo
     task.name = params.name;
     task.description = params.description;
+
+    //añadimos el propietario (owner)
+    task.owner = user.id;
 
     //guardar datos
     try {
@@ -34,6 +44,10 @@ async function postTask (request, response) {
 
 //editar función para listar tareas, definir como asíncrona
 async function getTasks(request, response) {
+
+    //recuperar usuario actual a través del token
+    const user = await authMiddleware.getUser(request, response);
+
     try {
         //recuperar tareas de la base de datos
         //opcional: ordenar resultados con sort por un parámetro seleccionado.
@@ -59,12 +73,18 @@ async function getTask(request, response) {
     //recuperar el id
     const taskId = request.params.id;
 
+    //recuperar usuario actual a través del token
+    const user = await authMiddleware.getUser(request, response);
+
     try {
         //se hace un findById con el id recibido por el request
         const task = await Task.findById(taskId);
 
         if(!task){
             response.status(400).send({msg: "Error: Task doesn't exists"});
+        }else if(task.owner != user.id) {
+            //validación para comprobar que somo el propietario, o dará error 403
+            response.status(403).send({msg: "Forbidden - Access to this resource on the server is denied!"});
         }else {
             response.status(200).send(task);
         }
@@ -74,13 +94,16 @@ async function getTask(request, response) {
 }
 
 /////////////////////////////////////////////////////////////////////////
-//crear función (no asíncrona) para actualizar tareas
-function putTask(request, response) {
+//función asíncrona para el middleware
+async function putTask(request, response) {
     //recuperar el id
     const taskId = request.params.id;
 
     //recuperar parámetros a actualizar
     const params = request.body;
+
+    //recuperar usuario actual a través del token
+    const user = await authMiddleware.getUser(request, response);
 
     try{
         //recuperar la tarea y ejecutar un callback
@@ -104,6 +127,9 @@ function putTask(request, response) {
                                 response.status(404).send({msg: err});
                             } else if(!result) {
                                 response.status(404).send({msg: "Error: task doesnt't exists"});
+                            }else if(taskData.owner != user.id){
+                                //añadimos validación para comprobar que somos el propietario, sino dará error 403
+                                response.status(403).send({msg: "Forbidden - Access to this resource on the server is denied!"});
                             } else {
                                 response.status(201).send({task: taskData});
                             }
@@ -123,26 +149,50 @@ async function deleteTask(request, response) {
     //recuperar el id
     const taskId = request.params.id;
 
-    try {
-        //realizar delete
-        const task = await Task.findByIdAndDelete(taskId);
+    //recuperar usuario actual a través del token
+    const user = await authMiddleware.getUser(request, response);
 
-        if(!task){
-            response.status(400).send({msg: "Error: Task doesn't exists"});
-        }else {
-            response.status(200).send({msg: "Task succesfully deleted"});
-        }
-    }catch(error) {
-        response.status(500).send(error);
+    try{
+        // mejorar la seguridad a la hora de eliminar con un callback:
+        Task.findById(taskId, (err, taskData)=>{
+            if(err){
+                res.status(500).send({msg: "Server status error"});
+            }else{
+                if(!taskData){
+                    res.status(400).send({msg: "Error: Task doesn't exists"});
+                }else if(taskData.owner != user.id){ // añadir validación para comprobar que somos el propietario sino dará 403:
+                    res.status(403).send({msg: "Forbidden - Access to this resource on the server is denied!"});
+                }else{
+                    Task.findByIdAndDelete(taskId, (err, result) => {
+                        if(err){
+                            res.status(500).send({msg: "Server status error"});
+                        }else if(!result){
+                            res.status(404).send({msg: "Error: task doesn't exists"});
+                        }else{
+                            res.status(200).send({msg: "Task successfully deleted"});
+                        }
+                    });
 
-        }
+                }
+            }
+        });
+
+
+    }catch(error){
+        res.status(500).send(error);
     }
+}
+
+
 
 ////////////////////////////////////////////////////////////////////////
 //cambiar el estado de la tarea
-function changeTask(request, response) {
+async function changeTask(request, response) {
     //recuperar el id de la tarea
     const taskId = request.params.id;
+
+    //recuperar usuario actual a través del token
+    const user = await authMiddleware.getUser(request, response);
 
     try {
         //buscar tarea a modificar y ejecutar callback
@@ -152,6 +202,9 @@ function changeTask(request, response) {
             }else {
                 if(!taskData) {
                     response.status(400).send({msg:"Error: Task doesn't exists"});
+                }else if(taskData.owner != user.id){
+                    //validación para comprobar que somos el propietario, sino dará 403
+                    response.status(403).send({msg: "Forbidden - Access to this resource on the server is denied!"});
                 } else {
                     //si existe la tarea cambiar campos is_complete y date_finish
                     taskData.is_complete = true;
@@ -163,6 +216,9 @@ function changeTask(request, response) {
                             response.status(404).send({msg: err});
                         }else if(!result){
                             response.status(404).send({msg: "Error: user doesn't exists"});
+                        }else if(taskData.owner != user.id){
+                            //validación para comprobar que somos el propietario, sino dará 403
+                            response.status(403).send({msg: "Forbidden - Access to this resource on the server is denied!"});
                         }else {
                             response.status(201).send({task: taskData});
                         }
@@ -175,8 +231,6 @@ function changeTask(request, response) {
         response.status(500).send(error);
     }
 }
-
-
 
 //exportar el módulo getTasks
 module.exports = {
