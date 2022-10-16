@@ -2,6 +2,10 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
+//importar el tipo ObjectId para trabajar con ids
+const ObjectId = Schema.ObjectId;
+
+
 //se crea un schema del modelo
 const TaskSchema = Schema({
    
@@ -36,9 +40,14 @@ const TaskSchema = Schema({
         type: Date,
         require: true, 
         default: null
+    }, 
+
+    owner: {
+        //se crea el campo propietario y se hace de tipo ObjectId
+        type: ObjectId,
+        require: true
     }
 });
-
 
 //se exporta el model añadiendo el nombre de la colección de MongoDB y el Schema
 module.exports = mongoose.model("tasks", TaskSchema);

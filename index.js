@@ -4,8 +4,14 @@
 const { default: mongoose } = require('mongoose');
 const app = require('./app');
 
+//cargar dotenv para las variables de entorno
+const dotenv = require('dotenv');
+
 //cargar el puerto en una variable
 const port = 10000;
+
+//ejecutar variables de entorno
+dotenv.config();
 
 //conectar mongoose a mongodb. En la ruta de la base de datos el /task-learn, crear una nueva base de datos con dicho nombre
 //mongoose.connect("mongodb+srv://alex:1234@cluster0.ztiwq.mongodb.net/task_learn?retryWrites=true", (error, response) => {
@@ -27,7 +33,7 @@ mongoose.connect("mongodb+srv://alex:1234@cluster0.ztiwq.mongodb.net/task_learn"
 });
 
 
-//lanzar el escuchador con un mensjae para saber que funciona
+//lanzar el escuchador con un mensaje para saber que funciona
 app.listen(port, () => {
     console.log(`Servidor funcionando en: http://localhost:${port}`);
 });
